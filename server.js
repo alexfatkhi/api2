@@ -24,90 +24,89 @@ app.use(express.json());
 // Sajikan file statis dari direktori saat ini
 app.use(express.static("."));
 
-// Dapatkan daftar gejala
+// Get available symptoms
 app.get("/symptoms", async (req, res) => {
   try {
-    console.log("Membaca gejala dari selected_gejala_v2.json");
-    const data = await fs.readFile("selected_gejala_v2.json", "utf8");
-    const symptoms = JSON.parse(data);
-    console.log(`Ditemukan ${symptoms.length} gejala`);
+    const symptoms = await fs.readFile(
+      path.join(__dirname, "selected_gejala_v2.json"),
+      "utf8"
+    );
     res.json({
       success: true,
-      symptoms: symptoms,
+      symptoms: JSON.parse(symptoms),
     });
   } catch (error) {
-    console.error("Error membaca gejala:", error);
+    console.error("Error reading symptoms:", error);
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: "Gagal memuat daftar gejala",
     });
   }
 });
 
-// Lakukan prediksi
+// Predict disease
 app.post("/predict", async (req, res) => {
-  const symptoms = req.body.symptoms;
-  if (!symptoms || !Array.isArray(symptoms)) {
-    return res.status(400).json({
-      success: false,
-      error: "Data gejala tidak valid",
-    });
-  }
-
   try {
-    await fs.writeFile("temp_input.json", JSON.stringify(symptoms));
+    const { symptoms } = req.body;
 
-    const python = spawn(pythonPath, ["predict.py"]);
-    let dataString = "";
-    let errorString = "";
+    if (!symptoms || !Array.isArray(symptoms) || symptoms.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Input gejala tidak valid",
+      });
+    }
 
-    python.stdout.on("data", (data) => {
-      dataString += data.toString();
+    const pythonProcess = spawn(pythonPath, [
+      "predict.py",
+      JSON.stringify(symptoms),
+    ]);
+    let result = "";
+    let error = "";
+
+    pythonProcess.stdout.on("data", (data) => {
+      result += data.toString();
     });
 
-    python.stderr.on("data", (data) => {
-      console.error(`Error Python: ${data}`);
-      errorString += data.toString();
+    pythonProcess.stderr.on("data", (data) => {
+      error += data.toString();
     });
 
-    python.on("close", (code) => {
+    pythonProcess.on("close", (code) => {
+      if (code !== 0) {
+        console.error("Python process error:", error);
+        return res.status(500).json({
+          success: false,
+          error: "Gagal memproses prediksi",
+        });
+      }
+
       try {
-        // Hanya coba hapus jika file ada
-        fs.access("temp_input.json")
-          .then(() => fs.unlink("temp_input.json"))
-          .catch(() => {}); // Abaikan jika file tidak ada
-
-        if (code !== 0) {
-          console.error("Proses Python keluar dengan kode:", code);
-          console.error("Output error:", errorString);
-          return res.status(500).json({
-            success: false,
-            error: "Error menjalankan script prediksi",
-          });
-        }
-
-        const result = JSON.parse(dataString);
-        res.json(result);
-      } catch (error) {
-        console.error("Error memproses hasil:", error);
+        const prediction = JSON.parse(result);
+        res.json({
+          success: true,
+          prediction: prediction.disease,
+          confidence: prediction.confidence,
+        });
+      } catch (e) {
+        console.error("Error parsing prediction result:", e);
         res.status(500).json({
           success: false,
-          error: "Error memproses hasil prediksi",
+          error: "Gagal memproses hasil prediksi",
         });
       }
     });
   } catch (error) {
-    console.error("Error server:", error);
+    console.error("Server error:", error);
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: "Terjadi kesalahan pada server",
     });
   }
 });
 
 // Mulai server
 app.listen(port, () => {
-  console.log(`Server berjalan di port ${port}`);
+  console.log(`ML Service running on port ${port}`);
   console.log("Menggunakan Python dari:", pythonPath);
   console.log("Pastikan Anda memiliki semua file yang diperlukan:");
   console.log("- train1_model_v2.joblib");
