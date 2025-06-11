@@ -19,7 +19,16 @@ const corsOptions = {
   ],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "Access-Control-Allow-Origin",
+    "Access-Control-Allow-Credentials",
+  ],
+  exposedHeaders: [
+    "Access-Control-Allow-Origin",
+    "Access-Control-Allow-Credentials",
+  ],
 };
 
 app.use(cors(corsOptions));
@@ -51,15 +60,18 @@ app.get("/symptoms", async (req, res) => {
 // Predict disease
 app.post("/predict", async (req, res) => {
   try {
+    console.log("Received prediction request with body:", req.body);
     const { symptoms } = req.body;
 
     if (!symptoms || !Array.isArray(symptoms) || symptoms.length === 0) {
+      console.log("Invalid symptoms input:", symptoms);
       return res.status(400).json({
         success: false,
         error: "Input gejala tidak valid",
       });
     }
 
+    console.log("Processing symptoms:", symptoms);
     const pythonProcess = spawn(pythonPath, [
       "predict.py",
       JSON.stringify(symptoms),
@@ -68,24 +80,30 @@ app.post("/predict", async (req, res) => {
     let error = "";
 
     pythonProcess.stdout.on("data", (data) => {
+      console.log("Python process output:", data.toString());
       result += data.toString();
     });
 
     pythonProcess.stderr.on("data", (data) => {
+      console.error("Python process error output:", data.toString());
       error += data.toString();
     });
 
     pythonProcess.on("close", (code) => {
+      console.log("Python process exited with code:", code);
       if (code !== 0) {
         console.error("Python process error:", error);
         return res.status(500).json({
           success: false,
           error: "Gagal memproses prediksi",
+          details: error,
         });
       }
 
       try {
+        console.log("Raw prediction result:", result);
         const prediction = JSON.parse(result);
+        console.log("Parsed prediction:", prediction);
         res.json({
           success: true,
           prediction: prediction.disease,
@@ -96,6 +114,7 @@ app.post("/predict", async (req, res) => {
         res.status(500).json({
           success: false,
           error: "Gagal memproses hasil prediksi",
+          details: e.message,
         });
       }
     });
@@ -104,6 +123,7 @@ app.post("/predict", async (req, res) => {
     res.status(500).json({
       success: false,
       error: "Terjadi kesalahan pada server",
+      details: error.message,
     });
   }
 });
