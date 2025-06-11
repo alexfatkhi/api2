@@ -9,13 +9,10 @@ const port = process.env.PORT || 3000;
 
 // Detect Python command based on platform and environment
 const getPythonCommand = () => {
-  // Check if we're on Windows
-  const isWindows = process.platform === "win32";
-
   if (process.env.NODE_ENV === "production") {
-    return "python3"; // Use python3 in production (Linux/Unix)
+    return "/opt/venv/bin/python3"; // Use venv Python in production
   } else {
-    return isWindows ? "python" : "python3"; // Use python on Windows, python3 on Unix
+    return process.platform === "win32" ? "python" : "python3";
   }
 };
 
@@ -36,10 +33,7 @@ app.use(function (req, res, next) {
   );
 
   // Request headers you wish to allow
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "X-Requested-With,content-type"
-  );
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
   // Set to true if you need the website to include cookies in the requests sent
   // to the API (e.g. in case you use sessions)
