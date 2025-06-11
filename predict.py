@@ -1,41 +1,40 @@
+import sys
 import json
-import pandas as pd
 import joblib
+import numpy as np
+from sklearn.tree import DecisionTreeClassifier
 
 try:
-    # Muat model dan label encoder
+    # Load the model
     model = joblib.load("train1_model_v2.joblib")
-    le = joblib.load("label_train_v2.joblib")
 
-    # Muat kolom fitur
+    # Get symptoms from command line argument
+    symptoms = json.loads(sys.argv[1])
+
+    # Load label mapping
+    label_mapping = joblib.load("label_train_v2.joblib")
+
+    # Create feature vector (1 for selected symptoms, 0 for others)
     with open("selected_gejala_v2.json", "r") as f:
-        feature_columns = json.load(f)
+        all_symptoms = json.load(f)
 
-    # Baca gejala dari file sementara
-    with open("temp_input.json", "r") as f:
-        symptoms = json.load(f)
+    # Initialize feature vector with zeros
+    feature_vector = np.zeros(len(all_symptoms))
 
-    # Buat kamus input dengan semua fitur diset ke 0
-    input_dict = {feat: 0 for feat in feature_columns}
-
-    # Set gejala yang dipilih ke 1
+    # Set 1 for selected symptoms
     for symptom in symptoms:
-        if symptom in input_dict:
-            input_dict[symptom] = 1
+        if symptom in all_symptoms:
+            idx = all_symptoms.index(symptom)
+            feature_vector[idx] = 1
 
-    # Buat DataFrame input tanpa nama fitur
-    input_vector = [input_dict[col] for col in feature_columns]
-    input_df = pd.DataFrame([input_vector])
+    # Make prediction
+    prediction = model.predict([feature_vector])
+    predicted_label = label_mapping[prediction[0]]
 
-    # Lakukan prediksi
-    predicted_class_index = model.predict(input_df)[0]
-    predicted_label = le.inverse_transform([predicted_class_index])[0]
-
-    # Kembalikan hasil
-    result = {"success": True, "prediction": predicted_label.upper()}
+    # Return result as JSON
+    result = {"success": True, "prediction": predicted_label}
     print(json.dumps(result))
 
 except Exception as e:
     error_result = {"success": False, "error": str(e)}
     print(json.dumps(error_result))
-    print(f"Error: {str(e)}", file=sys.stderr)
