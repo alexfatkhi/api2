@@ -10,8 +10,15 @@ const port = process.env.PORT || 3000;
 // Use 'python3' in production, 'python' in development
 const pythonPath = process.env.NODE_ENV === "production" ? "python3" : "python";
 
-// Aktifkan CORS dan parsing JSON
-app.use(cors());
+// Konfigurasi CORS
+const corsOptions = {
+  origin: ["http://localhost:5174", "https://peduli-sehat.vercel.app"],
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Sajikan file statis dari direktori saat ini
