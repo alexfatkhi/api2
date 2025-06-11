@@ -7,8 +7,19 @@ const path = require("path");
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Use 'python3' in production, 'python' in development
-const pythonPath = process.env.NODE_ENV === "production" ? "python3" : "python";
+// Detect Python command based on platform and environment
+const getPythonCommand = () => {
+  // Check if we're on Windows
+  const isWindows = process.platform === "win32";
+
+  if (process.env.NODE_ENV === "production") {
+    return "python3"; // Use python3 in production (Linux/Unix)
+  } else {
+    return isWindows ? "python" : "python3"; // Use python on Windows, python3 on Unix
+  }
+};
+
+const pythonPath = getPythonCommand();
 
 // Enable CORS for all routes
 app.use(cors());
@@ -82,10 +93,13 @@ app.post("/predict", async (req, res) => {
     }
 
     console.log("Processing symptoms:", symptoms);
+    console.log("Using Python command:", pythonPath);
+
     const pythonProcess = spawn(pythonPath, [
-      "predict.py",
+      path.join(__dirname, "predict.py"),
       JSON.stringify(symptoms),
     ]);
+
     let result = "";
     let error = "";
 
@@ -97,6 +111,15 @@ app.post("/predict", async (req, res) => {
     pythonProcess.stderr.on("data", (data) => {
       console.error("Python process error output:", data.toString());
       error += data.toString();
+    });
+
+    pythonProcess.on("error", (err) => {
+      console.error("Failed to start Python process:", err);
+      res.status(500).json({
+        success: false,
+        error: "Gagal menjalankan proses prediksi",
+        details: err.message,
+      });
     });
 
     pythonProcess.on("close", (code) => {
