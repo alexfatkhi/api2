@@ -1,1 +1,1 @@
-web: node server.js 
+web: python3 -m pip install -r requirements.txt && node server.js 
